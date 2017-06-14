@@ -14,8 +14,8 @@ class GameTile {
     this.element = document.createElement('div')
     this.element.className = 'tile'
     document.getElementById('tile-container').appendChild(this.element)
-    var textNode = document.createTextNode(value);
-    this.element.appendChild(textNode);
+    this.valueTextNode = document.createTextNode(value);
+    this.element.appendChild(this.valueTextNode);
   }
 
   move(dx, dy) {
@@ -30,6 +30,11 @@ class GameTile {
     window.requestAnimationFrame(function() {
       s.WebkitTransform = "translate("+(self.x0px + self.size*self.x).toString()+"px,"+(self.y0px + self.size*self.y).toString()+"px)";
     });
+    this.valueTextNode.nodeValue = this.value;
+  }
+
+  delete() {
+    document.getElementById('tile-container').removeChild(this.element)
   }
 }
 
@@ -75,6 +80,26 @@ const GameController = {
     newTile.actuate();
   },
 
+  getUnoccupiedPositions() {
+    // Returns x, y values of all unoccupied spaces on the board.
+    unoccupied = []
+    for(r=0; r<4; r++) {
+      for(c=0; c<4; c++) {
+        if (this.allTiles[r][c] == null) {
+          unoccupied.push([c, r])
+        }
+      }
+    }
+    return unoccupied
+  },
+
+  addRandomTile() {
+    value =  Math.random() < 0.8 ? 2 : 4;
+    var unoccupied = this.getUnoccupiedPositions();
+    [x, y] = unoccupied[Math.floor(Math.random()*unoccupied.length)];
+    this.addTile(x, y, value);
+  },
+
   reApplyCoordinates() {
     // Moving tiles adjusts their position in the game grid, but not their
     // x and y coordinates. This function corrects those coordinates.
@@ -93,6 +118,7 @@ const GameController = {
   horizontalMove(dx) {
     // Moves all tiles horizontally. dx = 1 if to the right, -1 if to the left
     var newPositions = []
+    var self = this;
     this.allTiles.forEach(function(row) {
       var newRow = [];
       row.forEach(function(tile) {
@@ -100,6 +126,9 @@ const GameController = {
           newRow.push(tile)
         }
       });
+
+      self.performMerges(newRow);
+
       while (newRow.length < 4) {
         if (dx < 1) {
           newRow.push(null);
@@ -112,6 +141,30 @@ const GameController = {
       });
   this.allTiles = newPositions;
   this.reApplyCoordinates();
+
+  // Add a random tile
+  this.addRandomTile();
+  },
+
+  mergeTiles(tile1, tile2) {
+    // Merges tile2 into tile1.
+    // Increase the value of tile1
+    tile1.value = tile1.value + tile2.value;
+    tile2.delete();
+  },
+
+  performMerges(sequence) {
+    // Check a sequence (either a newly gathered row or column) of tiles
+    // for merges. If two tiles can be merged, merge them!
+    var i = 0;
+    while (i < sequence.length-1) {
+      if (sequence[i].value == sequence[i+1].value) {
+        // The first merging tile is updated. The second tile is deleted.
+        this.mergeTiles(sequence[i], sequence[i+1]);
+        sequence.splice(i+1, 1);
+      }
+      i += 1;
+    }
   },
 
   verticalMove(dy) {
@@ -126,6 +179,8 @@ const GameController = {
           newColumn.push(tile);
         }
       }
+
+      this.performMerges(newColumn);
 
       // Expand the column with nulls to length 4
       while (newColumn.length < 4) {
@@ -142,6 +197,9 @@ const GameController = {
       }
     }
   this.reApplyCoordinates();
+
+  // Add a random tile
+  this.addRandomTile();
   },
 };
 
