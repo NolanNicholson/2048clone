@@ -1,3 +1,12 @@
+// DONE! Checking if any pieces actually moved, and only generating a new random piece if they didn't
+// Game over if the board has no valid moves
+// Making pieces appear on the board instead of tweening in from the top-left
+// TODO for future work:
+// Game-over notification instead of abruptly restarting the game
+// "Score" box
+// Making pieces merge visibly instead of disappearing
+// CSS for changing colors
+
 class GameTile {
   constructor(x=0, y=0, value=2048) {
     this.x = x;
@@ -46,38 +55,94 @@ const GameController = {
       this.allTiles.push([null, null, null, null])
     }
 
+    this.transitionFinished = false;
+    document.addEventListener("webkitTransitionEnd", () => {
+      this.transitionFinished = true;
+    })
+
     // Add test tiles
-    this.addTile(0, 1, 2);
-    this.addTile(1, 2, 2);
-    this.addTile(0, 3, 4);
+    this.addRandomTile();
+    this.addRandomTile();
 
     // Set up input listener
     document.addEventListener('keydown', (event) => {
-      const keyName = event.key;
-      // console.log(keyName);
-      switch (keyName) {
-        case 'ArrowLeft':
-          this.horizontalMove(-1);
-          break;
-        case 'ArrowRight':
-          this.horizontalMove(1);
-          break;
-        case 'ArrowUp':
-          this.verticalMove(-1);
-          break;
-        case 'ArrowDown':
-          this.verticalMove(1);
-          break;
+      if(this.transitionFinished) {
+        if (this.checkForGameOver()) {
+          this.gameOver();
+        }
+        const keyName = event.key;
+        // console.log(keyName);
+        switch (keyName) {
+          case 'ArrowLeft':
+            this.horizontalMove(-1);
+            break;
+          case 'ArrowRight':
+            this.horizontalMove(1);
+            break;
+          case 'ArrowUp':
+            this.verticalMove(-1);
+            break;
+          case 'ArrowDown':
+            this.verticalMove(1);
+            break;
+        }
       }
     });
   },
 
+  checkForGameOver() {
+    for(r=0; r<4; r++) {
+      for(c=0; c<4; c++) {
+        if(this.allTiles[r][c] == null) {
+          return false;
+        }
+        if(c>0) {
+          if(this.allTiles[r][c].value == this.allTiles[r][c-1].value) {
+            return false;
+          }
+        }
+        if(r>0) {
+          if(this.allTiles[r][c].value == this.allTiles[r-1][c].value) {
+            return false;
+          }
+        }
+      }
+    }
+    return true
+  },
+
+  gameOver() {
+    console.log('Game Over!');
+    this.deleteAllTiles();
+    this.addRandomTile();
+    this.addRandomTile();
+  },
+
+  deleteAllTiles() {
+    for(r=0; r<4; r++) {
+      for(c=0; c<4; c++) {
+        tile = this.allTiles[r][c];
+        if (tile != null) {
+          tile.delete();
+          this.allTiles[r][c] = null;
+        }
+      }
+    }
+  },
+
   addTile(x, y, val) {
     // Adds a tile at a specified position.
-    newTile = new GameTile(x, y, val);
+    var newTile = new GameTile(x, y, val);
     // this.allTiles.push(newTile);
     this.allTiles[y][x] = newTile;
+    var s = newTile.element.style
     newTile.actuate();
+    // s.webkitTransform = "scale(0.1, 0.1)";
+    s.WebkitTransform = "translate("+(newTile.x0px + newTile.size*x).toString()+"px,"+(newTile.y0px + newTile.size*y).toString()+"px) scale(0.1, 0.1)";
+    window.requestAnimationFrame(function() {
+      // s.webkitTransform = "scale(1, 1)";
+      s.WebkitTransform = "translate("+(newTile.x0px + newTile.size*x).toString()+"px,"+(newTile.y0px + newTile.size*y).toString()+"px) scale(1, 1)";
+    });
   },
 
   getUnoccupiedPositions() {
@@ -118,6 +183,7 @@ const GameController = {
   horizontalMove(dx) {
     // Moves all tiles horizontally. dx = 1 if to the right, -1 if to the left
     var newPositions = []
+    var movedAnything = false;
     var self = this;
     this.allTiles.forEach(function(row) {
       var newRow = [];
@@ -137,13 +203,24 @@ const GameController = {
           newRow.unshift(null);
         }
       }
-      newPositions.push(newRow);
-      });
-  this.allTiles = newPositions;
-  this.reApplyCoordinates();
 
-  // Add a random tile
-  this.addRandomTile();
+      // Check whether anything moved
+      for(i=0; i<4; i++) {
+        if (newRow[i] != row[i]) {
+          movedAnything = true;
+        }
+      }
+      newPositions.push(newRow);
+    });
+
+    this.allTiles = newPositions;
+    this.reApplyCoordinates();
+
+    // Add a random tile
+    if (movedAnything) {
+      this.addRandomTile();
+      this.transitionFinished = false;
+    }
   },
 
   mergeTiles(tile1, tile2) {
@@ -169,6 +246,8 @@ const GameController = {
 
   verticalMove(dy) {
     // Moves all tiles vertically. dy = 1 if down, 0 if up
+    var movedAnything = false;
+
     for(c=0; c<4; c++) {
       // For each column, coalesce the non-null tiles into a 1D array
       var newColumn = []
@@ -193,13 +272,19 @@ const GameController = {
       }
       // Replace the original column with this one
       for(r=0; r<4; r++) {
+        if (this.allTiles[r][c] != newColumn[r]) {
+          movedAnything = true;
+        }
         this.allTiles[r][c] = newColumn[r];
       }
     }
-  this.reApplyCoordinates();
+    this.reApplyCoordinates();
 
-  // Add a random tile
-  this.addRandomTile();
+    // Add a random tile
+    if (movedAnything) {
+      this.addRandomTile();
+      this.transitionFinished = false;
+    }
   },
 };
 
